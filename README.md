@@ -27,10 +27,10 @@ accentizer = RUAccent()
 accentizer.load(omograph_model_size='medium', dict_load_startup=False)
 
 text = 'на двери висит замок'
-print(text_processor.process_all(text)) # на двер+и вис+ит зам+ок
+print(accentizer.process_all(text)) # на двер+и вис+ит зам+ок
 
 text = 'ежик нашел в лесу ягоды'
-print(text_processor.process_yo(text)) # ёжик нашел в лесу ягоды
+print(accentizer.process_yo(text)) # ёжик нашел в лесу ягоды
 ```
 
 
