@@ -3,7 +3,11 @@
 RUAccent - это библиотека для автоматической расстановки ударений на русском языке. 
 
 ## Установка
-   **Требуется установленный GIT**
+   С помощью pip
+   ```
+   pip install ruaccent
+   ```
+   С помощью GIT
    ```
    pip install git+https://github.com/Den4ikAI/ruaccent.git
    ```
