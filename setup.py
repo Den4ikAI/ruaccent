@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='ruaccent',
-    version='1.0.0',
+    version='1.2.0',
     author='Denis Petrov',
     author_email='arduino4b@gmail.com',
     description='A Russian text accentuation tool',
@@ -11,9 +11,10 @@ setup(
     packages=find_packages(),
     install_requires=[
         'huggingface_hub',
-        'torch==1.13.1',
+        'onnxruntime',
         'transformers',
-        'sentencepiece'
+        'sentencepiece',
+        'numpy'
     ],
     classifiers=[
         'Development Status :: 5 - Production/Stable',
