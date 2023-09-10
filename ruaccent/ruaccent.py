@@ -5,6 +5,7 @@ import os
 from os.path import join as join_path
 from .omograph_model import OmographModel
 from .accent_model import AccentModel
+from .text_split import split_by_sentences
 import re
 
 
@@ -22,8 +23,13 @@ class RUAccent:
         omograph_model_size="medium",
         dict_load_startup=False,
         disable_accent_dict=False,
+        custom_dict={},
+        custom_homographs={},
         repo="TeraTTS/accentuator",
-    ):
+        ):
+
+        self.custom_dict = custom_dict
+        self.accents = {}
         if not os.path.exists(
             join_path(self.workdir, "dictionary")
         ) or not os.path.exists(join_path(self.workdir, "nn")):
@@ -36,26 +42,33 @@ class RUAccent:
         self.omographs = json.load(
             open(join_path(self.workdir, "dictionary/omographs.json"), encoding='utf-8')
         )
+        self.yo_omographs = json.load(
+            open(join_path(self.workdir, "dictionary/yo_omographs.json"), encoding='utf-8')
+        )
+        self.omographs.update(self.yo_omographs)
+        self.omographs.update(custom_homographs)
         self.yo_words = json.load(
             open(join_path(self.workdir, "dictionary/yo_words.json"), encoding='utf-8')
         )
         self.dict_load_startup = dict_load_startup
 
         if dict_load_startup:
-            self.accents = json.load(
+            self.accents.update(json.load(
                 open(join_path(self.workdir, "dictionary/accents.json"), encoding='utf-8')
-            )
+            ))
         if disable_accent_dict:
-            self.accents = {}
             self.disable_accent_dict = True
         else:
             self.disable_accent_dict = False
+
+        self.accents.update(self.custom_dict)
 
         if omograph_model_size not in ["small", "medium"]:
             raise NotImplementedError
 
         self.omograph_model.load(
             join_path(self.workdir, f"nn/nn_omograph/{omograph_model_size}/")
+            #"/media/denis/042CD5B7300C3479/stress_dataset/glycine/bert/rubert_base/onnx/"
         )
         self.accent_model.load(join_path(self.workdir, "nn/nn_accent/"))
 
@@ -84,6 +97,7 @@ class RUAccent:
                     )
                 )
             )
+        out_dict.update(self.custom_dict)
         return out_dict
 
     def count_vowels(self, text):
@@ -144,10 +158,14 @@ class RUAccent:
         return splitted_text
 
     def process_all(self, text):
-        text = self.split_by_words(text)
-        processed_text = self.process_yo(text)
-        processed_text = self.process_omographs(processed_text)
-        processed_text = self.process_accent(processed_text)
-        processed_text = " ".join(processed_text)
-        processed_text = self.delete_spaces_before_punc(processed_text)
-        return processed_text
+        sentences = split_by_sentences(text)
+        outputs = []
+        for sentence in sentences:
+            text = self.split_by_words(sentence)
+            processed_text = self.process_yo(text)
+            processed_text = self.process_omographs(processed_text)
+            processed_text = self.process_accent(processed_text)
+            processed_text = " ".join(processed_text)
+            processed_text = self.delete_spaces_before_punc(processed_text)
+            outputs.append(processed_text)
+        return " ".join(outputs)
