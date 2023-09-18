@@ -20,9 +20,8 @@ class RUAccent:
 
     def load(
         self,
-        omograph_model_size="medium",
-        dict_load_startup=False,
-        disable_accent_dict=False,
+        omograph_model_size="big",
+        use_dictionary=False,
         custom_dict={},
         custom_homographs={},
         repo="TeraTTS/accentuator",
@@ -42,33 +41,28 @@ class RUAccent:
         self.omographs = json.load(
             open(join_path(self.workdir, "dictionary/omographs.json"), encoding='utf-8')
         )
-        self.yo_omographs = json.load(
-            open(join_path(self.workdir, "dictionary/yo_omographs.json"), encoding='utf-8')
-        )
-        self.omographs.update(self.yo_omographs)
+        #self.yo_omographs = json.load(
+        #    open(join_path(self.workdir, "dictionary/yo_omographs.json"), encoding='utf-8')
+        #)
+        #self.omographs.update(self.yo_omographs)
         self.omographs.update(custom_homographs)
         self.yo_words = json.load(
             open(join_path(self.workdir, "dictionary/yo_words.json"), encoding='utf-8')
         )
-        self.dict_load_startup = dict_load_startup
 
-        if dict_load_startup:
+        if use_dictionary:
             self.accents.update(json.load(
                 open(join_path(self.workdir, "dictionary/accents.json"), encoding='utf-8')
             ))
-        if disable_accent_dict:
-            self.disable_accent_dict = True
-        else:
-            self.disable_accent_dict = False
 
         self.accents.update(self.custom_dict)
 
-        if omograph_model_size not in ["small", "medium"]:
+        if omograph_model_size not in ["small", "big"]:
             raise NotImplementedError
 
         self.omograph_model.load(
             join_path(self.workdir, f"nn/nn_omograph/{omograph_model_size}/")
-            #"/media/denis/042CD5B7300C3479/stress_dataset/glycine/bert/rubert_base/onnx/"
+            
         )
         self.accent_model.load(join_path(self.workdir, "nn/nn_accent/"))
 
@@ -77,28 +71,6 @@ class RUAccent:
         result = re.findall(r"\w*(?:\+\w+)*|[^\w\s]+", string.lower())
         return [res for res in result if res]
 
-    def extract_initial_letters(self, text):
-        words = text
-        initial_letters = []
-        for word in words:
-            if len(word) > 2 and '+' not in word and not bool(re.search('[a-zA-Z]', word)):
-                initial_letters.append(word[0])
-        return initial_letters
-
-    def load_dict(self, text):
-        chars = self.extract_initial_letters(text)
-        out_dict = {}
-        for char in chars:
-            out_dict.update(
-                json.load(
-                    open(
-                        join_path(self.workdir, f"dictionary/letter_accent/{char}.json"),
-                        encoding='utf-8'
-                    )
-                )
-            )
-        out_dict.update(self.custom_dict)
-        return out_dict
 
     def count_vowels(self, text):
         vowels = "аеёиоуыэюяАЕЁИОУЫЭЮЯ"
@@ -116,14 +88,14 @@ class RUAccent:
             text = text.replace(" " + char, char)
         return text
 
-    def process_yo(self, text):
+    def _process_yo(self, text):
         splitted_text = text
 
         for i, word in enumerate(splitted_text):
             splitted_text[i] = self.yo_words.get(word, word)
         return splitted_text
 
-    def process_omographs(self, text):
+    def _process_omographs(self, text):
         splitted_text = text
 
         founded_omographs = []
@@ -143,10 +115,7 @@ class RUAccent:
             splitted_text[omograph["position"]] = cls
         return splitted_text
 
-    def process_accent(self, text):
-        if not self.dict_load_startup and not self.disable_accent_dict:
-            self.accents = self.load_dict(text)
-
+    def _process_accent(self, text):
         splitted_text = text
 
         for i, word in enumerate(splitted_text):
@@ -157,14 +126,25 @@ class RUAccent:
                 splitted_text[i] = stressed_word
         return splitted_text
 
+    def process_yo(self, text):
+        sentences = split_by_sentences(text)
+        outputs = []
+        for sentence in sentences:
+            text = self.split_by_words(sentence)
+            processed_text = self._process_yo(text)
+            processed_text = " ".join(processed_text)
+            processed_text = self.delete_spaces_before_punc(processed_text)
+            outputs.append(processed_text)
+        return " ".join(outputs)
+    
     def process_all(self, text):
         sentences = split_by_sentences(text)
         outputs = []
         for sentence in sentences:
             text = self.split_by_words(sentence)
-            processed_text = self.process_yo(text)
-            processed_text = self.process_omographs(processed_text)
-            processed_text = self.process_accent(processed_text)
+            processed_text = self._process_yo(text)
+            processed_text = self._process_omographs(processed_text)
+            processed_text = self._process_accent(processed_text)
             processed_text = " ".join(processed_text)
             processed_text = self.delete_spaces_before_punc(processed_text)
             outputs.append(processed_text)
