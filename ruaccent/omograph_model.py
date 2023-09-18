@@ -18,8 +18,7 @@ class OmographModel:
     def classify(self, text, hypotheses):
         hypotheses_probs = []
         text = re.sub(r'\s+(?=(?:[,.?!:;…]))', r'', text)
-        print(text)
-        print(hypotheses)
+
         for h in hypotheses:
             inputs = self.tokenizer(text, h, return_tensors="np")
             inputs = {k: v.astype(np.int64) for k, v in inputs.items()}
@@ -27,6 +26,5 @@ class OmographModel:
             outputs = self.session.run(None, inputs)[0]
             outputs = self.softmax(outputs)
             prob_label_is_true = [float(p[1]) for p in outputs][0]
-            print(prob_label_is_true)
             hypotheses_probs.append(prob_label_is_true)
         return hypotheses[hypotheses_probs.index(max(hypotheses_probs))]
