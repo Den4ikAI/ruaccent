@@ -29,7 +29,7 @@ RUAccent - это библиотека для автоматической ра�
 from ruaccent import RUAccent
 
 accentizer = RUAccent()
-accentizer.load(omograph_model_size='big', dict_load_startup=False, disable_accent_dict=False)
+accentizer.load(omograph_model_size='big', use_dictionary=False)
 
 text = 'на двери висит замок.'
 print(text_processor.process_all(text))
