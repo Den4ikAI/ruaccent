@@ -3,7 +3,7 @@ from onnxruntime import InferenceSession
 from transformers import AutoTokenizer
 import re
 
-class OmographModel:
+class YomographModel:
     def __init__(self):
         pass
 

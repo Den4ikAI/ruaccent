@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='ruaccent',
-    version='1.5.1',
+    version='1.5.2',
     author='Denis Petrov',
     author_email='arduino4b@gmail.com',
     description='A Russian text accentuation tool',
