@@ -29,6 +29,7 @@ class CharTokenizer(PreTrainedTokenizer):
         *args,
         **kwargs
     ):
+        self.vocab = load_vocab(vocab_file)
         super().__init__(
             pad_token=pad_token,
             unk_token=unk_token,
@@ -39,19 +40,12 @@ class CharTokenizer(PreTrainedTokenizer):
         )
         self.do_lower_case = do_lower_case
 
-        if not vocab_file or not os.path.isfile(vocab_file):
-            self.vocab = OrderedDict()
-            self.ids_to_tokens = OrderedDict()
-        else:
-            self.vocab = load_vocab(vocab_file)
-            self.ids_to_tokens = OrderedDict([(ids, tok) for tok, ids in self.vocab.items()])
-
     @property
     def vocab_size(self):
         return len(self.vocab)
 
     def get_vocab(self):
-        return self.vocab
+        return dict(self.vocab)
 
     def _convert_token_to_id(self, token):
         if self.do_lower_case:
