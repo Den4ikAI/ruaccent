@@ -39,7 +39,7 @@ print(accentizer.process_yo(text))
 
 ## Датасеты
 
-- [Датасет](https://huggingface.co/datasets/TeraTTS/nkrja_raw) собранный с [НКРЯ](https://ruscorpora.ru/)
+- [Датасет](https://huggingface.co/datasets/TeraTTS/nkrja_raw) собранный с [НКРЯ](https://ruscorpora.ru/) (удален по просьбе разработчиков НКРЯ)
 - [Датасет](https://huggingface.co/datasets/TeraTTS/stress_dataset_sft_proza) использовавшийся для обучения моделей акцентуатора (версия только с прозой)
 - [Датасет](https://huggingface.co/datasets/TeraTTS/stress_dataset_sft_poetry) использовавшийся для обучения моделей акцентуатора (версия проза + поэзия)
 
