@@ -1,21 +1,19 @@
+
 from setuptools import setup, find_packages
+
+with open('requirements.txt') as f:
+    requirements = f.read().splitlines()
 
 setup(
     name='ruaccent',
-    version='1.5.5.2',
+    version='1.5.6.1',
     author='Denis Petrov',
     author_email='arduino4b@gmail.com',
     description='A Russian text accentuation tool',
     license='Apache License 2.0',
     url='https://github.com/Den4ikAI/ruaccent',  
     packages=find_packages(),
-    install_requires=[
-        'huggingface_hub',
-        'onnxruntime',
-        'transformers',
-        'sentencepiece',
-        'numpy'
-    ],
+    install_requires=requirements,
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Developers',
@@ -25,4 +23,8 @@ setup(
         'Operating System :: Unix',
         'Operating System :: MacOS',
     ],
+    package_data={
+        '': ['*.md', '*.txt'],
+    },
+    include_package_data=True,
 )
