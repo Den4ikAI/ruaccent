@@ -29,9 +29,9 @@ class RUAccent:
                                       'small_poetry': '/nn/nn_omograph/small_poetry',
                                       'turbo': '/nn/nn_omograph/turbo'}
     
-        self.accentuator_paths = ['/nn/nn_accent', '/nn/nn_stress_usage_predictor','/nn/nn_yo_homograph_resolver', '/dictionary', '/dictionary/rule_engine', "/koziev/rulemma", "/koziev/rupostagger", "/koziev/rupostagger/database"]
+        self.accentuator_paths = ['/nn/nn_accent', '/nn/nn_stress_usage_predictor','/nn/nn_yo_homograph_resolver', '/dictionary', '/dictionary/rule_engine']
         self.letters_accent = {'о': '+о', 'О': '+О'}
-
+        self.koziev_paths = ["/koziev/rulemma", "/koziev/rupostagger", "/koziev/rupostagger/database"]
     def load(
         self,
         omograph_model_size="big_poetry",
@@ -46,7 +46,7 @@ class RUAccent:
             self.workdir = workdir
         else:
             self.workdir = str(pathlib.Path(__file__).resolve().parent)
-
+        self.module_path = str(pathlib.Path(__file__).resolve().parent)
         self.custom_dict = custom_dict
         self.accents = {}
         if not os.path.exists(
@@ -66,10 +66,16 @@ class RUAccent:
             if model_path:
                 files = self.fs.ls(repo + model_path)
                 for file in files:
-                    hf_hub_download(repo_id=repo, local_dir_use_symlinks=False, local_dir=self.workdir, filename=file['name'].replace(repo+'/', ''))
+                    if file["type"] == "file":
+                        hf_hub_download(repo_id=repo, local_dir_use_symlinks=False, local_dir=self.workdir, filename=file['name'].replace(repo+'/', ''))
             else:
                 raise FileNotFoundError
-                
+        if not os.path.exists(join_path(self.module_path, "koziev")):
+          for path in self.koziev_paths:
+               files = self.fs.ls(repo + path)
+               for file in files:
+                   if file["type"] == "file":
+                       hf_hub_download(repo_id=repo, local_dir_use_symlinks=False, local_dir=self.module_path, filename=file['name'].replace(repo+'/', ''))
         from .rule_accent_engine import RuleEngine
         self.rule_accent = RuleEngine()
         self.omographs = json.load(
@@ -91,17 +97,14 @@ class RUAccent:
             ))
         self.accents.update(self.custom_dict)
         self.accents.update(self.letters_accent)
-        self.omograph_model.load(
-        join_path(self.workdir, f"nn/nn_omograph/{omograph_model_size}/")
-
-        #"../../../pretrain_ruaccent_turbo/onnx_deberta"        
-	)
+        self.omograph_model.load(join_path(self.workdir, f"nn/nn_omograph/{omograph_model_size}/"), device=device)
+        
         self.yo_homographs = json.load(
             gzip.open(join_path(self.workdir, "dictionary","yo_homographs.json.gz"))
         )
-        self.accent_model.load(join_path(self.workdir, "nn","nn_accent/"))
-        self.stress_usage_predictor.load(join_path(self.workdir, "nn","nn_stress_usage_predictor/"))
-        self.yo_homograph_model.load(join_path(self.workdir, "nn","nn_yo_homograph_resolver"))
+        self.accent_model.load(join_path(self.workdir, "nn","nn_accent/"), device=device)
+        self.stress_usage_predictor.load(join_path(self.workdir, "nn","nn_stress_usage_predictor/"), device=device)
+        self.yo_homograph_model.load(join_path(self.workdir, "nn","nn_yo_homograph_resolver"), device=device)
         self.rule_accent.load(join_path(self.workdir, "dictionary","rule_engine"))
 
     def split_by_words(self, string):

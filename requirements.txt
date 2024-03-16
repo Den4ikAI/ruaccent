@@ -1,0 +1,6 @@
+huggingface_hub
+onnxruntime
+transformers
+sentencepiece
+numpy
+python-crfsuite

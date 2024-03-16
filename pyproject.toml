@@ -1,0 +1,23 @@
+[build-system]
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "ruaccent"
+authors = [{name = "Denis Petrov", email = "arduino4b@gmail.com"}]
+readme = "README.md"
+license = {file = "LICENSE"}
+classifiers = ["License :: OSI Approved :: Apache Software License"]
+dynamic = ["version", "description"]
+
+dependencies = [
+    "huggingface_hub",
+    "onnxruntime",
+    "transformers",
+    "sentencepiece",
+    "numpy",
+    "python-crfsuite",
+]
+
+[project.urls]
+Home = "https://github.com/Den4ikAI/ruaccent"
