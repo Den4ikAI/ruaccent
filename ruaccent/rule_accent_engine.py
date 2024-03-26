@@ -76,7 +76,7 @@ class RuleEngine:
             max_compatible_index = check_tag.index(max(check_tag))
             if word["interpretations"][max_compatible_index]["accentuated"]:
                 return word["interpretations"][max_compatible_index]["accentuated"]
-        return accented_lemma
+        return accented_lemma if accented_lemma is not None else word['token']
 
 #    def tokenize(self, text):
 #        text_tokenized = self.split_by_words(text)
