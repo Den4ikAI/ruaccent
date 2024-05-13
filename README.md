@@ -37,3 +37,7 @@ print(accentizer.process_all(text))
 ```
 
 Файлы моделей и словарей располагаются по [ссылке](https://huggingface.co/ruaccent/accentuator). Мы будем признательны фидбеку на [telegram аккаунт](https://t.me/chckdskeasfsd)
+
+## Донат
+Вы можете поддержать проект деньгами. Это поможет быстрее разрабатывать более качественные новые версии. 
+CloudTips: https://pay.cloudtips.ru/p/b9d86686
