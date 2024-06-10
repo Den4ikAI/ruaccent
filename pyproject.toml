@@ -17,6 +17,7 @@ dependencies = [
     "sentencepiece",
     "numpy",
     "python-crfsuite",
+    "razdel"
 ]
 
 [project.urls]

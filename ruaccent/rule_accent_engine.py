@@ -16,9 +16,9 @@ class RuleEngine:
         self.forms_dict = {}
 
     def load(self, path):
-        with open(file=join_path(path, "accents.json"), mode='r') as f:
+        with open(file=join_path(path, "accents.json"), mode='r', encoding="utf-8") as f:
             self.wordforms = json.load(f)
-        with open(file=join_path(path, "forms.json"), mode='r') as f:
+        with open(file=join_path(path, "forms.json"), mode='r', encoding="utf-8") as f:
             self.forms_dict = json.load(f)
         self.lemmatizer = Lemmatizer()
         self.lemmatizer.load()
