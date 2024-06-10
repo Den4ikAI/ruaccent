@@ -125,7 +125,7 @@ class RUAccent:
                 gzip.open(join_path(self.workdir, "dictionary","yo_homographs.json.gz"))
             )
             self.accent_model.load(join_path(self.workdir, "nn","nn_accent/"), device=device)
-            self.stress_usage_predictor.load("/media/denis/042CD5B7300C3479/stress_dataset/glycine/predict_need_stress/tiny_onnx", device=device)
+            self.stress_usage_predictor.load(join_path(self.workdir, "nn","nn_stress_usage_predictor/"), device=device)
             self.yo_homograph_model.load(join_path(self.workdir, "nn","nn_yo_homograph_resolver"), device=device)
             self.rule_accent.load(join_path(self.workdir, "dictionary","rule_engine"))
 
