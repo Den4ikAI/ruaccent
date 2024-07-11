@@ -53,6 +53,7 @@ class RUAccent:
         self.module_path = str(pathlib.Path(__file__).resolve().parent)
         self.custom_dict = custom_dict
         self.accents = {}
+
         if not os.path.exists(
             join_path(self.workdir, "dictionary")
         ):
@@ -78,56 +79,43 @@ class RUAccent:
                for file in files:
                    if file["type"] == "file":
                        hf_hub_download(repo_id=repo, local_dir_use_symlinks=False, local_dir=self.module_path, filename=file['name'].replace(repo+'/', ''))
-        if self.tiny_mode:
-            self.accents.update(self.custom_dict)
-            self.accents.update(self.letters_accent)
-
-            self.omographs = json.load(
+        
+        self.omographs = json.load(
             gzip.open(join_path(self.workdir, "dictionary","omographs.json.gz"))
         )
-            self.omographs.update(custom_homographs)
-            self.yo_words = json.load(
+        self.omographs.update(custom_homographs)
+        self.omograph_model.load(join_path(self.workdir, self.omograph_models_paths[omograph_model_size][1:]), device=device)
+
+        self.yo_words = json.load(
             gzip.open(join_path(self.workdir, "dictionary","yo_words.json.gz"))
-            )
+        ) 
+        self.accent_model.load(join_path(self.workdir, "nn","nn_accent/"), device=device)
+        self.yo_homographs = json.load(
+                gzip.open(join_path(self.workdir, "dictionary","yo_homographs.json.gz"))
+            ) 
+        self.yo_homograph_model.load(join_path(self.workdir, "nn","nn_yo_homograph_resolver"), device=device)
+
+        if self.tiny_mode or not use_dictionary:
             self.accents.update(json.load(
                 gzip.open(join_path(self.workdir, "dictionary","accents_nn.json.gz"))
             ))
-            self.omograph_model.load(join_path(self.workdir, self.omograph_models_paths[omograph_model_size][1:]), device=device)
-            self.accent_model.load(join_path(self.workdir, "nn","nn_accent/"), device=device)
-            self.yo_homographs = json.load(
-                gzip.open(join_path(self.workdir, "dictionary","yo_homographs.json.gz"))
-            )
-            self.yo_homograph_model.load(join_path(self.workdir, "nn","nn_yo_homograph_resolver"), device=device)
         else:
+            self.accents.update(json.load(
+                gzip.open(join_path(self.workdir, "dictionary","accents.json.gz"))
+            ))
+
+
+        self.accents.update(self.custom_dict)
+        self.accents.update(self.letters_accent)
+
+
+        if not self.tiny_mode:
             from .rule_accent_engine import RuleEngine
             self.rule_accent = RuleEngine()
-            self.omographs = json.load(
-                gzip.open(join_path(self.workdir, "dictionary","omographs.json.gz"))
-            )
-            self.omographs.update(custom_homographs)
-    
-            self.yo_words = json.load(
-                gzip.open(join_path(self.workdir, "dictionary","yo_words.json.gz"))
-            )
-    
-            if use_dictionary:
-                self.accents.update(json.load(
-                    gzip.open(join_path(self.workdir, "dictionary","accents.json.gz"))
-                ))
-            else:
-                self.accents.update(json.load(
-                    gzip.open(join_path(self.workdir, "dictionary","accents_nn.json.gz"))
-                ))
-            self.accents.update(self.custom_dict)
-            self.accents.update(self.letters_accent)
-            self.omograph_model.load(join_path(self.workdir, self.omograph_models_paths[omograph_model_size][1:]), device=device)        
-            self.yo_homographs = json.load(
-                gzip.open(join_path(self.workdir, "dictionary","yo_homographs.json.gz"))
-            )
-            self.accent_model.load(join_path(self.workdir, "nn","nn_accent/"), device=device)
+
             self.stress_usage_predictor.load(join_path(self.workdir, "nn","nn_stress_usage_predictor/"), device=device)
-            self.yo_homograph_model.load(join_path(self.workdir, "nn","nn_yo_homograph_resolver"), device=device)
             self.rule_accent.load(join_path(self.workdir, "dictionary","rule_engine"))
+
 
     def split_by_words(self, string):
         string = string.replace(" - ",' ~ ')
