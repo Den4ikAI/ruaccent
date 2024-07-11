@@ -8,7 +8,7 @@ from .omograph_model import OmographModel
 from .accent_model import AccentModel
 from .stress_usage_model import StressUsagePredictorModel
 from .yo_homograph_model import YoHomographModel
-from razdel import sentenize
+from .text_preprocessor import TextPreprocessor
 import re
 
 
@@ -117,16 +117,6 @@ class RUAccent:
             self.rule_accent.load(join_path(self.workdir, "dictionary","rule_engine"))
 
 
-    def split_by_words(self, string):
-        string = string.replace(" - ",' ~ ')
-        result = re.findall(r"\w*(?:\+\w+)*|[^\w\s]+", string.lower())
-        return [res for res in result if res]
-
-    def split_by_sentences(self, string):
-        result = list(sentenize(string))
-        result = [_.text for _ in result]
-        return result
-
     def count_vowels(self, text):
         vowels = "аеёиоуыэюяАЕЁИОУЫЭЮЯ"
         return sum(1 for char in text if char in vowels)
@@ -152,17 +142,17 @@ class RUAccent:
             entities.append(entity)
         return entities
 
-    def _process_yo(self, text, sentence):
-        splitted_text = text
+    def _process_yo(self, words, sentence):
         yo_predictions = self.extract_entities(self.yo_homograph_model.predict_yo_homographs(sentence))
         
-        for i, word in enumerate(splitted_text):
-            splitted_text[i] = self.yo_words.get(word, word)
+        for i, word in enumerate(words):
+            words[i] = self.yo_words.get(word, word)
             if yo_predictions[i] == "YO":
-                splitted_text[i] = self.yo_homographs.get(word, word)
-        return splitted_text
+                words[i] = self.yo_homographs.get(word, word)
+        return words
 
-    def _process_omographs(self, text, sentence):
+
+    def _process_omographs(self, text):
         splitted_text = text
     
         founded_omographs = []
@@ -214,33 +204,33 @@ class RUAccent:
 
         
     def process_yo(self, text):
-        sentences = self.self.split_by_sentences(text)
+        sentences = TextPreprocessor.split_by_sentences(text)
         outputs = []
         for sentence in sentences:
-            text = self.split_by_words(sentence)
-            processed_text = self._process_yo(text)
+            words = TextPreprocessor.split_by_words(sentence)
+            processed_text = self._process_yo(words, sentence)
             processed_text = " ".join(processed_text)
             processed_text = self.delete_spaces_before_punc(processed_text)
             outputs.append(processed_text)
         return " ".join(outputs)
     
     def process_all(self, text):
+        if self.tiny_mode:
+            raise Exception("The method is not available for tiny_mode=True")
+
         text = re.sub(self.normalize, "", text)
-        sentences = self.split_by_sentences(text)
+        sentences = TextPreprocessor.split_by_sentences(text)
         outputs = []
+
         for sentence in sentences:
-            text = self.split_by_words(sentence)
-            accented_tokens = self.rule_accent.accentuate(sentence) if not self.tiny_mode else text
-            if len(accented_tokens) == len(text):
-                for i in range(len(text)):
-                    if '+' in accented_tokens[i]:
-                        print(accented_tokens[i])
-                        text[i] = accented_tokens[i]
-            stress_usages = self.extract_entities(self.stress_usage_predictor.predict_stress_usage(sentence)) if not self.tiny_mode else ["STRESS"] * len(text)
-            processed_text = self._process_yo(text, sentence)
-            processed_text = self._process_omographs(processed_text, sentence)
-            processed_text = self._process_accent(processed_text, stress_usages)
-            processed_text = " ".join(processed_text)
-            processed_text = self.delete_spaces_before_punc(processed_text)
-            outputs.append(processed_text)
-        return " ".join(outputs)
+            words, remaining_text = TextPreprocessor.split_by_words(sentence)
+            stress_usages = self.extract_entities(self.stress_usage_predictor.predict_stress_usage(sentence))
+            processed_words = self._process_yo(words, sentence)
+            processed_words = self._process_omographs(processed_words)
+            processed_words = self._process_accent(processed_words, stress_usages)
+            
+            processed_sentence = remaining_text[0] + "".join([l+r for l,r in zip(processed_words, remaining_text[1:])])
+            processed_sentence = self.delete_spaces_before_punc(processed_sentence)
+            
+            outputs.append(processed_sentence)
+        return "".join(outputs)
