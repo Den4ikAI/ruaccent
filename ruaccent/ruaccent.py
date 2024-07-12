@@ -143,12 +143,23 @@ class RUAccent:
         return entities
 
     def _process_yo(self, words, sentence):
-        yo_predictions = self.extract_entities(self.yo_homograph_model.predict_yo_homographs(sentence))
+        def fix_capital(source, target):
+            if len(source) != len(target):
+                return target
+            
+            mask = [x.isupper() for x in source]
+            return "".join([tgt.upper() if m else tgt.lower() for m, tgt in zip(mask, target)])
+        lower_sentence = sentence.lower()
+
+        yo_predictions = None
+        if 'е' in lower_sentence:
+            yo_predictions = self.extract_entities(self.yo_homograph_model.predict_yo_homographs(lower_sentence))
         
         for i, word in enumerate(words):
-            words[i] = self.yo_words.get(word, word)
-            if yo_predictions[i] == "YO":
-                words[i] = self.yo_homographs.get(word, word)
+            lower_word = word.lower()
+            words[i] = fix_capital(word, self.yo_words.get(lower_word, word))
+            if yo_predictions and yo_predictions[i] == "YO":
+                words[i] = fix_capital(word, self.yo_homographs.get(lower_word, word))
         return words
 
 
@@ -207,29 +218,27 @@ class RUAccent:
         sentences = TextPreprocessor.split_by_sentences(text)
         outputs = []
         for sentence in sentences:
-            words = TextPreprocessor.split_by_words(sentence)
-            processed_text = self._process_yo(words, sentence)
-            processed_text = " ".join(processed_text)
+            words, remaining_text = TextPreprocessor.split_by_words(sentence)
+            processed_words = self._process_yo(words, sentence)
+            processed_text = "".join([l+r for l,r in zip(remaining_text, processed_words)])
             processed_text = self.delete_spaces_before_punc(processed_text)
             outputs.append(processed_text)
         return " ".join(outputs)
     
     def process_all(self, text):
-        if self.tiny_mode:
-            raise Exception("The method is not available for tiny_mode=True")
-
         text = re.sub(self.normalize, "", text)
         sentences = TextPreprocessor.split_by_sentences(text)
         outputs = []
 
         for sentence in sentences:
             words, remaining_text = TextPreprocessor.split_by_words(sentence)
-            stress_usages = self.extract_entities(self.stress_usage_predictor.predict_stress_usage(sentence))
+            stress_usages = self.extract_entities(self.stress_usage_predictor.predict_stress_usage(sentence)) if not self.tiny_mode else ["STRESS"] * len(text)            
+            
             processed_words = self._process_yo(words, sentence)
             processed_words = self._process_omographs(processed_words)
             processed_words = self._process_accent(processed_words, stress_usages)
-            
-            processed_sentence = remaining_text[0] + "".join([l+r for l,r in zip(processed_words, remaining_text[1:])])
+
+            processed_sentence = "".join([l+r for l,r in zip(remaining_text, processed_words)])
             processed_sentence = self.delete_spaces_before_punc(processed_sentence)
             
             outputs.append(processed_sentence)
