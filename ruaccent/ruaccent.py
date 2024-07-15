@@ -9,6 +9,7 @@ from .accent_model import AccentModel
 from .stress_usage_model import StressUsagePredictorModel
 from .yo_homograph_model import YoHomographModel
 from .text_preprocessor import TextPreprocessor
+from .text_postprocessor import fix_capital
 import re
 
 
@@ -143,12 +144,6 @@ class RUAccent:
         return entities
 
     def _process_yo(self, words, sentence):
-        def fix_capital(source, target):
-            if len(source) != len(target):
-                return target
-            
-            mask = [x.isupper() for x in source]
-            return "".join([tgt.upper() if m else tgt.lower() for m, tgt in zip(mask, target)])
         lower_sentence = sentence.lower()
 
         yo_predictions = None
@@ -206,11 +201,16 @@ class RUAccent:
         splitted_text = text
         for i, word in enumerate(splitted_text):
             if stress_usages[i] == "STRESS":
-                stressed_word = self.accents.get(word, word)
-                if stressed_word == word and not self.has_punctuation(word) and self.count_vowels(word) > 1:
+                lower_word = word.lower()
+                stressed_word = self.accents.get(lower_word, lower_word)
+                if stressed_word == lower_word and not self.has_punctuation(lower_word) and self.count_vowels(lower_word) > 1:
                     splitted_text[i] = self.accent_model.put_accent(word)
                 else:
-                    splitted_text[i] = stressed_word
+                    match = re.finditer(r'\+', stressed_word)
+                    word_fixed = list(word)
+                    for j, e in enumerate(list(match)):
+                        word_fixed = word_fixed[:e.start() + j] + ['+'] + list(word)[e.end() - 1:]
+                    splitted_text[i] = "".join(word_fixed)
         return splitted_text
 
         
@@ -233,7 +233,6 @@ class RUAccent:
         for sentence in sentences:
             words, remaining_text = TextPreprocessor.split_by_words(sentence)
             stress_usages = self.extract_entities(self.stress_usage_predictor.predict_stress_usage(sentence)) if not self.tiny_mode else ["STRESS"] * len(text)            
-            
             processed_words = self._process_yo(words, sentence)
             processed_words = self._process_omographs(processed_words)
             processed_words = self._process_accent(processed_words, stress_usages)

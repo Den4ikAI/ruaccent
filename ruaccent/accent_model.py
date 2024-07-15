@@ -2,6 +2,7 @@ import numpy as np
 import json
 from onnxruntime import InferenceSession
 from .char_tokenizer import CharTokenizer
+from .text_postprocessor import fix_capital
 
 def softmax(x):
     e_x = np.exp(x - np.max(x))
@@ -29,7 +30,8 @@ class AccentModel:
         return text
 
     def put_accent(self, word):
-        inputs = self.tokenizer(word, return_tensors="np")
+        lower_word = word.lower()
+        inputs = self.tokenizer(lower_word, return_tensors="np")
         inputs = {k: v.astype(np.int64) for k, v in inputs.items()}
         outputs = self.session.run(None, inputs)
         output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
@@ -41,5 +43,4 @@ class AccentModel:
                             for label, score in zip(labels, scores)]
 
         stressed_word = self.render_stress(word, pred_with_scores)
-
         return stressed_word
