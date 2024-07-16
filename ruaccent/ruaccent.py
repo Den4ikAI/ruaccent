@@ -200,6 +200,8 @@ class RUAccent:
     def _process_accent(self, text, stress_usages):
         splitted_text = text
         for i, word in enumerate(splitted_text):
+            if '+' in word:
+                continue
             if stress_usages[i] == "STRESS":
                 lower_word = word.lower()
                 stressed_word = self.accents.get(lower_word, lower_word)
@@ -209,7 +211,7 @@ class RUAccent:
                     match = re.finditer(r'\+', stressed_word)
                     word_fixed = list(word)
                     for j, e in enumerate(list(match)):
-                        word_fixed = word_fixed[:e.start() + j] + ['+'] + list(word)[e.end() - 1:]
+                        word_fixed = word_fixed[:e.start() + j] + ["+"] + list(word)[e.end() - 1:]
                     splitted_text[i] = "".join(word_fixed)
         return splitted_text
 
