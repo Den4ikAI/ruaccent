@@ -227,7 +227,8 @@ class RUAccent:
             outputs.append(processed_text)
         return " ".join(outputs)
     
-    def process_all(self, text):
+
+    def process_all_internal(self, text):
         text = re.sub(self.normalize, "", text)
         sentences = TextPreprocessor.split_by_sentences(text)
         outputs = []
@@ -244,3 +245,38 @@ class RUAccent:
             
             outputs.append(processed_sentence)
         return "".join(outputs)
+
+    def process_all(self, text, skip_regex=None):
+        if skip_regex:
+            pattern = re.compile(skip_regex)
+            matches = pattern.finditer(text)
+
+            indices = [(match.start(), match.end()) for match in matches]
+            skipped = [text[l:r] for l,r in indices]
+            
+            if len(indices) == 0:
+                return self.process_all_internal(text)
+
+            elems = []
+            for l,r in zip(indices, indices[1:]):
+                start = l[1]
+                end = r[0]
+                elem = text[start:end]
+                elems.extend(elem)
+
+            first_elem = text[:indices[0][0]]
+            last_elem = text[indices[-1][1]:]
+
+            elems = [first_elem] + elems + [last_elem]
+
+            results = []
+            for e in elems:
+                if len(e) == 0:
+                    results.append(e)
+                    continue
+                results.append(self.process_all_internal(e))
+            return "".join([results[0]] + [l+r for l,r in zip(skipped, results[1:])])
+        else:
+            return self.process_all_internal(text)
+
+
