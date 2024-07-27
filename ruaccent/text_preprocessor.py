@@ -16,8 +16,11 @@ class TextPreprocessor:
         words_mask = [i for i, w  in enumerate(words) if w]
         
         valid_words = [words[i] for i in words_mask]
+        if len(valid_words) == 0:
+            remaining_text = [string]
+        else:
+            remaining_text = ["".join(remaining_text[:words_mask[0]])] + ["".join(remaining_text[l+1:r]) for l, r in zip(words_mask, words_mask[1:])] 
         
-        remaining_text = ["".join(remaining_text[:words_mask[0]])] + ["".join(remaining_text[l+1:r]) for l, r in zip(words_mask, words_mask[1:])] 
         return valid_words, remaining_text
 
     @staticmethod

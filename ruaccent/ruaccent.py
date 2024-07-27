@@ -235,6 +235,8 @@ class RUAccent:
 
         for sentence in sentences:
             words, remaining_text = TextPreprocessor.split_by_words(sentence)
+            if len(words) == 0:
+                return sentence
             stress_usages = self.extract_entities(self.stress_usage_predictor.predict_stress_usage(sentence)) if not self.tiny_mode else ["STRESS"] * len(text)            
             processed_words = self._process_yo(words, sentence)
             processed_words = self._process_omographs(processed_words)
