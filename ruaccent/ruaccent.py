@@ -232,17 +232,15 @@ class RUAccent:
         text = re.sub(self.normalize, "", text)
         sentences = TextPreprocessor.split_by_sentences(text)
         outputs = []
-
         for sentence in sentences:
             words, remaining_text = TextPreprocessor.split_by_words(sentence)
-            if len(words) == 0:
-                return sentence
+            print("Words", words)
+            print("Rem", remaining_text)
             stress_usages = self.extract_entities(self.stress_usage_predictor.predict_stress_usage(sentence)) if not self.tiny_mode else ["STRESS"] * len(text)            
             processed_words = self._process_yo(words, sentence)
             processed_words = self._process_omographs(processed_words)
             processed_words = self._process_accent(processed_words, stress_usages)
-
-            processed_sentence = "".join([l+r for l,r in zip(remaining_text, processed_words)])
+            processed_sentence = "".join([l+r for l,r in zip(remaining_text, processed_words)] + [remaining_text[-1]])
             processed_sentence = self.delete_spaces_before_punc(processed_sentence)
             
             outputs.append(processed_sentence)
@@ -264,7 +262,7 @@ class RUAccent:
                 start = l[1]
                 end = r[0]
                 elem = text[start:end]
-                elems.extend(elem)
+                elems.extend([elem])
 
             first_elem = text[:indices[0][0]]
             last_elem = text[indices[-1][1]:]
