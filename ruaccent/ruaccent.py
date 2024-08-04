@@ -8,7 +8,8 @@ from .omograph_model import OmographModel
 from .accent_model import AccentModel
 from .stress_usage_model import StressUsagePredictorModel
 from .yo_homograph_model import YoHomographModel
-from razdel import sentenize
+from .text_preprocessor import TextPreprocessor
+from .text_postprocessor import fix_capital
 import re
 
 
@@ -53,6 +54,7 @@ class RUAccent:
         self.module_path = str(pathlib.Path(__file__).resolve().parent)
         self.custom_dict = custom_dict
         self.accents = {}
+
         if not os.path.exists(
             join_path(self.workdir, "dictionary")
         ):
@@ -78,66 +80,43 @@ class RUAccent:
                for file in files:
                    if file["type"] == "file":
                        hf_hub_download(repo_id=repo, local_dir_use_symlinks=False, local_dir=self.module_path, filename=file['name'].replace(repo+'/', ''))
-        if self.tiny_mode:
-            self.accents.update(self.custom_dict)
-            self.accents.update(self.letters_accent)
-
-            self.omographs = json.load(
+        
+        self.omographs = json.load(
             gzip.open(join_path(self.workdir, "dictionary","omographs.json.gz"))
         )
-            self.omographs.update(custom_homographs)
-            self.yo_words = json.load(
+        self.omographs.update(custom_homographs)
+        self.omograph_model.load(join_path(self.workdir, self.omograph_models_paths[omograph_model_size][1:]), device=device)
+
+        self.yo_words = json.load(
             gzip.open(join_path(self.workdir, "dictionary","yo_words.json.gz"))
-            )
+        ) 
+        self.accent_model.load(join_path(self.workdir, "nn","nn_accent/"), device=device)
+        self.yo_homographs = json.load(
+                gzip.open(join_path(self.workdir, "dictionary","yo_homographs.json.gz"))
+            ) 
+        self.yo_homograph_model.load(join_path(self.workdir, "nn","nn_yo_homograph_resolver"), device=device)
+
+        if self.tiny_mode or not use_dictionary:
             self.accents.update(json.load(
                 gzip.open(join_path(self.workdir, "dictionary","accents_nn.json.gz"))
             ))
-            self.omograph_model.load(join_path(self.workdir, self.omograph_models_paths[omograph_model_size][1:]), device=device)
-            self.accent_model.load(join_path(self.workdir, "nn","nn_accent/"), device=device)
-            self.yo_homographs = json.load(
-                gzip.open(join_path(self.workdir, "dictionary","yo_homographs.json.gz"))
-            )
-            self.yo_homograph_model.load(join_path(self.workdir, "nn","nn_yo_homograph_resolver"), device=device)
         else:
+            self.accents.update(json.load(
+                gzip.open(join_path(self.workdir, "dictionary","accents.json.gz"))
+            ))
+
+
+        self.accents.update(self.custom_dict)
+        self.accents.update(self.letters_accent)
+
+
+        if not self.tiny_mode:
             from .rule_accent_engine import RuleEngine
             self.rule_accent = RuleEngine()
-            self.omographs = json.load(
-                gzip.open(join_path(self.workdir, "dictionary","omographs.json.gz"))
-            )
-            self.omographs.update(custom_homographs)
-    
-            self.yo_words = json.load(
-                gzip.open(join_path(self.workdir, "dictionary","yo_words.json.gz"))
-            )
-    
-            if use_dictionary:
-                self.accents.update(json.load(
-                    gzip.open(join_path(self.workdir, "dictionary","accents.json.gz"))
-                ))
-            else:
-                self.accents.update(json.load(
-                    gzip.open(join_path(self.workdir, "dictionary","accents_nn.json.gz"))
-                ))
-            self.accents.update(self.custom_dict)
-            self.accents.update(self.letters_accent)
-            self.omograph_model.load(join_path(self.workdir, self.omograph_models_paths[omograph_model_size][1:]), device=device)        
-            self.yo_homographs = json.load(
-                gzip.open(join_path(self.workdir, "dictionary","yo_homographs.json.gz"))
-            )
-            self.accent_model.load(join_path(self.workdir, "nn","nn_accent/"), device=device)
+
             self.stress_usage_predictor.load(join_path(self.workdir, "nn","nn_stress_usage_predictor/"), device=device)
-            self.yo_homograph_model.load(join_path(self.workdir, "nn","nn_yo_homograph_resolver"), device=device)
             self.rule_accent.load(join_path(self.workdir, "dictionary","rule_engine"))
 
-    def split_by_words(self, string):
-        string = string.replace(" - ",' ~ ')
-        result = re.findall(r"\w*(?:\+\w+)*|[^\w\s]+", string.lower())
-        return [res for res in result if res]
-
-    def split_by_sentences(self, string):
-        result = list(sentenize(string))
-        result = [_.text for _ in result]
-        return result
 
     def count_vowels(self, text):
         vowels = "аеёиоуыэюяАЕЁИОУЫЭЮЯ"
@@ -164,17 +143,22 @@ class RUAccent:
             entities.append(entity)
         return entities
 
-    def _process_yo(self, text, sentence):
-        splitted_text = text
-        yo_predictions = self.extract_entities(self.yo_homograph_model.predict_yo_homographs(sentence))
-        
-        for i, word in enumerate(splitted_text):
-            splitted_text[i] = self.yo_words.get(word, word)
-            if yo_predictions[i] == "YO":
-                splitted_text[i] = self.yo_homographs.get(word, word)
-        return splitted_text
+    def _process_yo(self, words, sentence):
+        lower_sentence = sentence.lower()
 
-    def _process_omographs(self, text, sentence):
+        yo_predictions = None
+        if 'е' in lower_sentence:
+            yo_predictions = self.extract_entities(self.yo_homograph_model.predict_yo_homographs(lower_sentence))
+        
+        for i, word in enumerate(words):
+            lower_word = word.lower()
+            words[i] = fix_capital(word, self.yo_words.get(lower_word, word))
+            if yo_predictions and yo_predictions[i] == "YO":
+                words[i] = fix_capital(word, self.yo_homographs.get(lower_word, word))
+        return words
+
+
+    def _process_omographs(self, text):
         splitted_text = text
     
         founded_omographs = []
@@ -216,43 +200,84 @@ class RUAccent:
     def _process_accent(self, text, stress_usages):
         splitted_text = text
         for i, word in enumerate(splitted_text):
+            if '+' in word:
+                continue
             if stress_usages[i] == "STRESS":
-                stressed_word = self.accents.get(word, word)
-                if stressed_word == word and not self.has_punctuation(word) and self.count_vowels(word) > 1:
+                lower_word = word.lower()
+                stressed_word = self.accents.get(lower_word, lower_word)
+                if stressed_word == lower_word and not self.has_punctuation(lower_word) and self.count_vowels(lower_word) > 1:
                     splitted_text[i] = self.accent_model.put_accent(word)
                 else:
-                    splitted_text[i] = stressed_word
+                    match = re.finditer(r'\+', stressed_word)
+                    word_fixed = list(word)
+                    for j, e in enumerate(list(match)):
+                        word_fixed = word_fixed[:e.start() + j] + ["+"] + list(word)[e.end() - 1:]
+                    splitted_text[i] = "".join(word_fixed)
         return splitted_text
 
         
     def process_yo(self, text):
-        sentences = self.self.split_by_sentences(text)
+        sentences = TextPreprocessor.split_by_sentences(text)
         outputs = []
         for sentence in sentences:
-            text = self.split_by_words(sentence)
-            processed_text = self._process_yo(text)
-            processed_text = " ".join(processed_text)
+            words, remaining_text = TextPreprocessor.split_by_words(sentence)
+            processed_words = self._process_yo(words, sentence)
+            processed_text = "".join([l+r for l,r in zip(remaining_text, processed_words)])
             processed_text = self.delete_spaces_before_punc(processed_text)
             outputs.append(processed_text)
         return " ".join(outputs)
     
-    def process_all(self, text):
+
+    def process_all_internal(self, text):
         text = re.sub(self.normalize, "", text)
-        sentences = self.split_by_sentences(text)
+        sentences = TextPreprocessor.split_by_sentences(text)
         outputs = []
         for sentence in sentences:
-            text = self.split_by_words(sentence)
-            accented_tokens = self.rule_accent.accentuate(sentence) if not self.tiny_mode else text
-            if len(accented_tokens) == len(text):
-                for i in range(len(text)):
-                    if '+' in accented_tokens[i]:
-                        print(accented_tokens[i])
-                        text[i] = accented_tokens[i]
-            stress_usages = self.extract_entities(self.stress_usage_predictor.predict_stress_usage(sentence)) if not self.tiny_mode else ["STRESS"] * len(text)
-            processed_text = self._process_yo(text, sentence)
-            processed_text = self._process_omographs(processed_text, sentence)
-            processed_text = self._process_accent(processed_text, stress_usages)
-            processed_text = " ".join(processed_text)
-            processed_text = self.delete_spaces_before_punc(processed_text)
-            outputs.append(processed_text)
-        return " ".join(outputs)
+            words, remaining_text = TextPreprocessor.split_by_words(sentence)
+            if len(words) == 0:
+                outputs.append("".join(remaining_text))
+                continue
+            stress_usages = self.extract_entities(self.stress_usage_predictor.predict_stress_usage(sentence)) if not self.tiny_mode else ["STRESS"] * len(text)            
+            processed_words = self._process_yo(words, sentence)
+            processed_words = self._process_omographs(processed_words)
+            processed_words = self._process_accent(processed_words, stress_usages)
+            processed_sentence = "".join([l+r for l,r in zip(remaining_text, processed_words)] + [remaining_text[-1]])
+            processed_sentence = self.delete_spaces_before_punc(processed_sentence)
+            
+            outputs.append(processed_sentence)
+        return "".join(outputs)
+
+    def process_all(self, text, skip_regex=None):
+        if skip_regex:
+            pattern = re.compile(skip_regex)
+            matches = pattern.finditer(text)
+
+            indices = [(match.start(), match.end()) for match in matches]
+            skipped = [text[l:r] for l,r in indices]
+            
+            if len(indices) == 0:
+                return self.process_all_internal(text)
+
+            elems = []
+            for l,r in zip(indices, indices[1:]):
+                start = l[1]
+                end = r[0]
+                elem = text[start:end]
+                elems.extend([elem])
+
+            first_elem = text[:indices[0][0]]
+            last_elem = text[indices[-1][1]:]
+
+            elems = [first_elem] + elems + [last_elem]
+
+            results = []
+            for e in elems:
+                if len(e) == 0:
+                    results.append(e)
+                    continue
+                results.append(self.process_all_internal(e))
+            return "".join([results[0]] + [l+r for l,r in zip(skipped, results[1:])])
+        else:
+            return self.process_all_internal(text)
+
+
