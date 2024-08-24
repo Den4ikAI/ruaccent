@@ -27,8 +27,10 @@ class RUAccent:
                                       'small_poetry': '/nn/nn_omograph/small_poetry',
                                       'turbo': '/nn/nn_omograph/turbo',
                                       'turbo2': '/nn/nn_omograph/turbo2',
+                                      'turbo3': '/nn/nn_omograph/turbo3',
                                       'tiny': '/nn/nn_omograph/tiny',
-                                      'test': "/media/denis/042CD5B7300C3479/stress_dataset/glycine/bert4/pretrain_ruaccent_turbo/onnx_deberta_10k"}
+                                      'tiny2': '/nn/nn_omograph/tiny2',
+                                      }
     
         self.accentuator_paths = ['/nn/nn_accent', '/nn/nn_stress_usage_predictor','/nn/nn_yo_homograph_resolver', '/dictionary', '/dictionary/rule_engine']
         self.letters_accent = {'о': '+о', 'О': '+О'}
