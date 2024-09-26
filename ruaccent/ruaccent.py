@@ -28,8 +28,11 @@ class RUAccent:
                                       'turbo': '/nn/nn_omograph/turbo',
                                       'turbo2': '/nn/nn_omograph/turbo2',
                                       'turbo3': '/nn/nn_omograph/turbo3',
+                                      'turbo3.1': '/nn/nn_omograph/turbo3.1',
                                       'tiny': '/nn/nn_omograph/tiny',
                                       'tiny2': '/nn/nn_omograph/tiny2',
+                                      'tiny2.1': '/nn/nn_omograph/tiny2.1',
+
                                       }
     
         self.accentuator_paths = ['/nn/nn_accent', '/nn/nn_stress_usage_predictor','/nn/nn_yo_homograph_resolver', '/dictionary', '/dictionary/rule_engine']
