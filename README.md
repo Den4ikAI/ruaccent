@@ -16,7 +16,7 @@ RUAccent - это библиотека для автоматической ра�
 
     load(omograph_model_size='turbo2', use_dictionary=True, custom_dict={}, device="CPU", workdir=None)
 
- - На данный момент доступно 6 моделей - **tiny**, **tiny2**, **turbo2**, **turbo3**, **turbo**, **big_poetry**.
+ - На данный момент доступно 6 моделей - **tiny**, **tiny2**, **tiny2.1**, **turbo2**, **turbo3**, **turbo3.1**, **turbo**, **big_poetry**.
  - Переменная **use_dictionary** отвечает за загрузку всего словаря (требуется больше ОЗУ), иначе все ударения расставляет нейросеть. 
  - Функция **custom_dict** отвечает за добавление своих вариантов ударений в словарь. Формат такой: `{'слово': 'сл+ово с удар+ением'}`
 - Выбор устройства CPU или CUDA. **Для работы с CUDA требуется установить onnxruntime-gpu и CUDA.**
@@ -30,7 +30,7 @@ RUAccent - это библиотека для автоматической ра�
 from ruaccent import RUAccent
 
 accentizer = RUAccent()
-accentizer.load(omograph_model_size='turbo3', use_dictionary=True, tiny_mode=False)
+accentizer.load(omograph_model_size='turbo3.1', use_dictionary=True, tiny_mode=False)
 
 text = 'на двери висит замок.'
 print(accentizer.process_all(text))
