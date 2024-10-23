@@ -49,10 +49,11 @@ class OmographModel:
             start_index += group_length
         return new_grouped_list
         
-    def classify(self, texts, hypotheses):
+    def classify(self, texts, hypotheses, num_hypotheses):
         hypotheses_probs = []
         preprocessed_texts = [re.sub(r'\s+(?=(?:[,.?!:;…]))', r'', text) for text in texts]
-        if len(hypotheses) % 2 != 0:
+        # if len(hypotheses) % 2 != 0:
+        if not all([i % 2 == 0 for i in num_hypotheses]):
             #print("NO_BATCH")
             outs = []
             grouped_h = self.group_words(hypotheses)
