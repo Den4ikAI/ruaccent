@@ -6,7 +6,7 @@ with open('requirements.txt') as f:
 
 setup(
     name='ruaccent',
-    version='1.5.8',
+    version='1.5.8.3',
     author='Denis Petrov',
     author_email='arduino4b@gmail.com',
     description='A Russian text accentuation tool',

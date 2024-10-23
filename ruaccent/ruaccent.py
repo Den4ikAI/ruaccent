@@ -89,6 +89,7 @@ class RUAccent:
         self.omographs = json.load(
             gzip.open(join_path(self.workdir, "dictionary","omographs.json.gz"))
         )
+        self.omographs.update({"коса": ["к+оса", "кос+а"]})
         self.omographs.update(custom_homographs)
         self.omograph_model.load(join_path(self.workdir, self.omograph_models_paths[omograph_model_size][1:]), device=device)
 
@@ -192,11 +193,9 @@ class RUAccent:
                     texts_batch.append(self.delete_spaces_before_punc(" ".join(t.copy())))
                 t[position] = t_back
             cls_batch = self.omograph_model.classify(texts_batch, hypotheses_batch, num_hypotheses)
-    
             for cls_index, omograph in enumerate(founded_omographs):
                 position = omograph["position"]
                 splitted_text[position] = cls_batch[cls_index]
-    
         return splitted_text
 
 

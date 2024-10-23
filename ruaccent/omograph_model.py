@@ -18,25 +18,40 @@ class OmographModel:
         return e_x / e_x.sum()
 
     def group_words(self, words):
-        groups = {}
-        for word in words:
-            parts = word.replace('+', '')
-            key = parts
-            group = groups.setdefault(key, [])
-            group.append(word)
-    
+        if not words:
+            return []
+            
         result = []
-        for group in groups.values():
-            has_special_word = any(word.replace('+', '') in self.special_words for word in group)
-            if has_special_word and len(group) > 3:
-                subgroups = [group[i:i+3] for i in range(0, len(group), 3)]
-                result.extend(subgroups)
-            elif len(group) > 3 and len(group) % 2 == 0:
-                subgroups = [group[i:i+2] for i in range(0, len(group), 2)]
-                result.extend(subgroups)
+        current_group = [words[0]]
+        current_base = words[0].replace('+', '')
+        
+        for word in words[1:]:
+            base_word = word.replace('+', '')
+            
+            if base_word == current_base:
+                current_group.append(word)
             else:
-                result.append(group)
-    
+                if current_base in self.special_words and len(current_group) > 3:
+                    subgroups = [current_group[i:i+3] for i in range(0, len(current_group), 3)]
+                    result.extend(subgroups)
+                elif len(current_group) > 3 and len(current_group) % 2 == 0:
+                    subgroups = [current_group[i:i+2] for i in range(0, len(current_group), 2)]
+                    result.extend(subgroups)
+                else:
+                    result.append(current_group)
+                
+                current_group = [word]
+                current_base = base_word
+        
+        if current_base in self.special_words and len(current_group) > 3:
+            subgroups = [current_group[i:i+3] for i in range(0, len(current_group), 3)]
+            result.extend(subgroups)
+        elif len(current_group) > 3 and len(current_group) % 2 == 0:
+            subgroups = [current_group[i:i+2] for i in range(0, len(current_group), 2)]
+            result.extend(subgroups)
+        else:
+            result.append(current_group)
+        
         return result
         
     def transfer_grouping(self, grouped_list, target_list):
@@ -57,6 +72,8 @@ class OmographModel:
             #print("NO_BATCH")
             outs = []
             grouped_h = self.group_words(hypotheses)
+            #print(grouped_h)
+            #print(hypotheses)
             grouped_t = self.transfer_grouping(grouped_h, preprocessed_texts)
             for h, t in zip(grouped_h, grouped_t):
                 probs = []
