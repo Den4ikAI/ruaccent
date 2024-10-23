@@ -182,7 +182,8 @@ class RUAccent:
         if len(founded_omographs) > 0:
             texts_batch = []
             hypotheses_batch = [val for sublist in hypotheses for val in sublist]
-
+            num_hypotheses = [len(i) for i in hypotheses]
+            
             for o, t in zip(founded_omographs, texts):
                 position = o["position"]
                 t_back = t[position]
@@ -190,13 +191,11 @@ class RUAccent:
                 for _ in range(len(o["variants"])):
                     texts_batch.append(self.delete_spaces_before_punc(" ".join(t.copy())))
                 t[position] = t_back
-            cls_batch = self.omograph_model.classify(texts_batch, hypotheses_batch)
+            cls_batch = self.omograph_model.classify(texts_batch, hypotheses_batch, num_hypotheses)
     
-            cls_index = 0
-            for omograph in founded_omographs:
+            for cls_index, omograph in enumerate(founded_omographs):
                 position = omograph["position"]
                 splitted_text[position] = cls_batch[cls_index]
-                cls_index += 1
     
         return splitted_text
 
