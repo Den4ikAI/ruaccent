@@ -1,7 +1,11 @@
 def fix_capital(source, target):
-    if len(source) != len(target):
+    if not source or not source[0].isupper():
         return target
-            
-    mask = [x.isupper() for x in source]
-    return "".join([tgt.upper() if m else tgt.lower() for m, tgt in zip(mask, target)])
-        
+    if not target:
+        return target
+    if target[0] == '+':
+        if len(target) == 1:
+            return target
+        return target[0] + target[1].upper() + target[2:]
+    else:
+        return target.capitalize()

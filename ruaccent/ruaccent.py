@@ -10,6 +10,7 @@ from .stress_usage_model import StressUsagePredictorModel
 from .yo_homograph_model import YoHomographModel
 from .text_preprocessor import TextPreprocessor
 from .text_postprocessor import fix_capital
+from .morph_precitor import MorphPredictor
 import re
 
 
@@ -21,7 +22,7 @@ class RUAccent:
         self.stress_usage_predictor = StressUsagePredictorModel()
         self.yo_homograph_model = YoHomographModel()
         self.fs = HfFileSystem()
-        self.normalize = re.compile(r"[^a-zA-Z0-9\sа-яА-ЯёЁ—.,!?:;""''(){}\[\]«»„“”-]")
+        self.normalize = re.compile(r"[^a-zA-Z0-9\sа-яА-ЯёЁ—.,!?:;\"\"''(){}\[\]«»„“”\-\+]")
         self.omograph_models_paths = {'big_poetry': '/nn/nn_omograph/big_poetry', 
                                       'medium_poetry': '/nn/nn_omograph/medium_poetry', 
                                       'small_poetry': '/nn/nn_omograph/small_poetry',
@@ -35,28 +36,27 @@ class RUAccent:
 
                                       }
     
-        self.accentuator_paths = ['/nn/nn_accent', '/nn/nn_stress_usage_predictor','/nn/nn_yo_homograph_resolver', '/dictionary', '/dictionary/rule_engine']
+        self.accentuator_paths = ['/nn/nn_accent', '/nn/nn_stress_usage_predictor', '/nn/nn_yo_homograph_resolver', '/dictionary']
         self.letters_accent = {'о': '+о', 'О': '+О'}
-        self.koziev_paths = ["/koziev/rulemma", "/koziev/rupostagger", "/koziev/rupostagger/database"]
-        self.tiny_mode = False
+        self.module_path = str(pathlib.Path(__file__).resolve().parent)
+        self.workdir = self.module_path
         
     def load(
         self,
         omograph_model_size="turbo2",
-        use_dictionary=False,
+        use_dictionary=True,
         custom_dict={},
         custom_homographs={},
         device="CPU",
         repo="ruaccent/accentuator",
         workdir=None,
-        tiny_mode=False
+        tiny_mode=False,
+        stress_homographs_only=False,  # ставить ударение только в омографах
         ):
         self.tiny_mode = tiny_mode
         if workdir:
             self.workdir = workdir
-        else:
-            self.workdir = str(pathlib.Path(__file__).resolve().parent)
-        self.module_path = str(pathlib.Path(__file__).resolve().parent)
+        self.stress_homographs_only = stress_homographs_only
         self.custom_dict = custom_dict
         self.accents = {}
 
@@ -79,49 +79,61 @@ class RUAccent:
                 for file in files:
                     if file["type"] == "file":
                         hf_hub_download(repo_id=repo, local_dir_use_symlinks=False, local_dir=self.workdir, filename=file['name'].replace(repo+'/', ''))
-        if not os.path.exists(join_path(self.module_path, "koziev")):
-          for path in self.koziev_paths:
-               files = self.fs.ls(repo + path)
-               for file in files:
-                   if file["type"] == "file":
-                       hf_hub_download(repo_id=repo, local_dir_use_symlinks=False, local_dir=self.module_path, filename=file['name'].replace(repo+'/', ''))
-        
+ 
+        if not os.path.exists(join_path(self.workdir, "nn", "nn_rumorph")):
+            assert False, "Missing nn/nn_rumorph"
+ 
         self.omographs = json.load(
             gzip.open(join_path(self.workdir, "dictionary","omographs.json.gz"))
         )
-        self.omographs.update({"коса": ["к+оса", "кос+а"]})
         self.omographs.update(custom_homographs)
         self.omograph_model.load(join_path(self.workdir, self.omograph_models_paths[omograph_model_size][1:]), device=device)
 
+        if not self.stress_homographs_only:
+            if use_dictionary:
+                if self.tiny_mode:
+                    self.accents.update(json.load(
+                        gzip.open(join_path(self.workdir, "dictionary","accents_nn.json.gz"))
+                    ))
+                else:
+                    self.accents.update(json.load(
+                        gzip.open(join_path(self.workdir, "dictionary","accents.json.gz"))
+                    ))
+
+            self.accents.update(self.custom_dict)
+            self.accents.update(self.letters_accent)
+
+            if not self.tiny_mode:
+                self.stress_usage_predictor.load(join_path(self.workdir, "nn","nn_stress_usage_predictor/"), device=device)
+
+            self.accent_model.load(join_path(self.workdir, "nn","nn_accent/"), device=device)
+
+        # Ёфикатор
+        self.load_yo(device=device)
+
+
+    def load_yo(self, device="CPU"):
+        if not self.workdir:
+            self.workdir = str(pathlib.Path(__file__).resolve().parent)
+
+        # Словарь для однозначной расстановки "ё"
         self.yo_words = json.load(
-            gzip.open(join_path(self.workdir, "dictionary","yo_words.json.gz"))
-        ) 
-        self.accent_model.load(join_path(self.workdir, "nn","nn_accent/"), device=device)
-        self.yo_homographs = json.load(
-                gzip.open(join_path(self.workdir, "dictionary","yo_homographs.json.gz"))
-            ) 
-        self.yo_homograph_model.load(join_path(self.workdir, "nn","nn_yo_homograph_resolver"), device=device)
+            gzip.open(join_path(self.workdir, "dictionary", "yo_words.json.gz"))
+        )
+        # Морфологический движок
+        self.morph = MorphPredictor()
+        self.morph.load(join_path(self.workdir, "nn", "nn_rumorph", "deberta_onnx"), device)
 
-        if self.tiny_mode or not use_dictionary:
-            self.accents.update(json.load(
-                gzip.open(join_path(self.workdir, "dictionary","accents_nn.json.gz"))
-            ))
-        else:
-            self.accents.update(json.load(
-                gzip.open(join_path(self.workdir, "dictionary","accents.json.gz"))
-            ))
-
-
-        self.accents.update(self.custom_dict)
-        self.accents.update(self.letters_accent)
-
+        self.yo_rules = json.load(
+            gzip.open(join_path(self.workdir, "dictionary", "yo_rules.json.gz"))
+        )
 
         if not self.tiny_mode:
-            from .rule_accent_engine import RuleEngine
-            self.rule_accent = RuleEngine()
-
-            self.stress_usage_predictor.load(join_path(self.workdir, "nn","nn_stress_usage_predictor/"), device=device)
-            self.rule_accent.load(join_path(self.workdir, "dictionary","rule_engine"))
+            # Нейросеть для расстановки "ё"
+            self.yo_homographs = json.load(
+                    gzip.open(join_path(self.workdir, "dictionary", "yo_homographs.json.gz"))
+                ) 
+            self.yo_homograph_model.load(join_path(self.workdir, "nn", "nn_yo_homograph_resolver"), device=device)
 
 
     def count_vowels(self, text):
@@ -135,11 +147,9 @@ class RUAccent:
         return False
 
     def delete_spaces_before_punc(self, text):
-        punc = "!\"#$%&'()*,./:;<=>?@[\\]^_`{|}-"
-        for char in punc:
-            if char == '-':
-                text = text.replace(" " + char, char).replace(char + " ", char)
-            text = text.replace(" " + char, char)
+        text = re.sub(r'\s*-\s*', '-', text)
+        text = re.sub(r'\s+([!\"#$%&\'()*,\./:;<=>?@\[\\\]^_`{|}])', r' \1', text)
+        text = re.sub(r'([!\"#$%&\'()*,\./:;<=>?@\[\\\]^_`{|}])\s+', r'\1 ', text)
         return text.replace('~', '-')
 
     def extract_entities(self, data):
@@ -149,37 +159,180 @@ class RUAccent:
             entities.append(entity)
         return entities
 
+    # Используется ёфикатором
+    def _align_morph_tokens(self, processed_data, original_text):
+        """
+        Выравнивает токены и удаляет артефакты из результатов обработки текста.
+        
+        Args:
+            processed_data (list): Список словарей с результатами обработки
+            original_text (str): Исходный текст
+            
+        Returns:
+            list: Очищенный список токенов
+        """
+        # Функция для проверки валидности символа
+        def is_valid_char(char):
+            return ord(char) < 0xD800 or ord(char) > 0xDFFF
+        
+        # Фильтруем пустые токены и сортируем по позиции и длине
+        valid_tokens = []
+        for token in processed_data:
+            # Пропускаем токены с пустым словом или нулевой длиной
+            if not token['word'].strip() and token['start'] == token['end']:
+                continue
+                
+            # Проверяем границы
+            if token['start'] >= len(original_text) or token['end'] > len(original_text) or token['start'] < 0:
+                continue
+                
+            # Получаем текст токена из оригинального текста
+            token_text = original_text[token['start']:token['end']]
+            
+            # Проверяем на наличие невалидных символов
+            if all(is_valid_char(char) for char in token_text):
+                # Обновляем текст токена
+                token['word'] = token_text
+                valid_tokens.append(token)
+        
+        # Сортируем токены по начальной позиции и длине (более длинные первыми)
+        sorted_tokens = sorted(valid_tokens, key=lambda x: (x['start'], -(x['end'] - x['start'])))
+        
+        # Объединяем перекрывающиеся токены с одинаковой начальной позицией
+        final_tokens = []
+        current_start = None
+        
+        for token in sorted_tokens:
+            if current_start != token['start']:
+                final_tokens.append(token)
+                current_start = token['start']
+        
+        # Сортируем финальный результат по позиции
+        result = sorted(final_tokens, key=lambda x: x['start'])
+
+        result = [(_["word"].strip(), _["entity"]) for _ in result]
+
+        return result
+
+    def _choose_yo_rules(self, interpretations, tag):
+        resultWord = None
+        resultInterpretation = None
+        sum_max = 0
+        missing = 0
+        tag = tag.split('|', 1) # отделяем част речи от остальных атрибутов
+        tags = None
+        for w, variants in interpretations.items():
+            for var in variants:
+                vtags = var['pt'].split('|', 1)  # отделяем част речи от остальных атрибутов
+                if vtags[0] != tag[0]:  # сравниваем часть речи
+                    continue
+                # Парсим атрибуты, чтобы получить dict
+                if len(vtags) > 1:
+                    vtags = dict([_.split('=') for _ in vtags[1].split('|')])
+                else:
+                    vtags = {}
+                if tags is None:
+                    if len(tag) > 1:
+                        tags = dict([_.split('=') for _ in tag[1].split('|')])
+                    else:
+                        tags = {}
+                '''
+                Алгоритм следующий: берём то правило, в котором больший процент совпадающих тегов.
+                Если процент одинаковый, то берёт то правило, в котором меньше "лишних" тегов.
+                Пример:
+                 1: ADJ|Gender=Masc|Number=Sing|Variant=Short
+                 2: ADJ|Gender=Masc|Number=Sing
+                Для токена "ADJ|Gender=Masc|Number=Sing" будет выбрано правило 2, потому что в нём меньше "лишних" тегов.
+                Если результат в итоге получается равный - не получается различить "е" и "ё" - тогда возвращаем None.
+                '''
+                n = 1  # число общих тегов
+                pos_sum = 1 # число равных тегов  (считаем совпадение части речи, проверенное выше, за 1)
+                for attr, val in vtags.items():
+                    tag_val = tags.get(attr)
+                    if tag_val is not None:
+                        n += 1
+                        if val == tag_val:
+                            pos_sum += 1
+                pos_sum = pos_sum / n
+                if pos_sum >= sum_max:
+                    # Считаем число лишних тегов
+                    miss = 0
+                    for attr in vtags.keys():
+                        if attr not in tags:
+                            miss += 1
+                    if pos_sum > sum_max or miss < missing:
+                        sum_max = pos_sum
+                        missing = miss
+                        resultWord = w
+                        resultInterpretation = var
+                    else:  # тот же "вес"
+                        if resultWord != w:  # равнозначные варианты - возвращаем None
+                            resultInterpretation = None
+        if resultInterpretation is None:
+            return None, None
+        return resultWord, resultInterpretation
+
     def _process_yo(self, words, sentence):
         lower_sentence = sentence.lower()
 
-        yo_predictions = None
         if 'е' in lower_sentence:
-            yo_predictions = self.extract_entities(self.yo_homograph_model.predict_yo_homographs(lower_sentence))
-        
-        for i, word in enumerate(words):
-            lower_word = word.lower()
-            words[i] = fix_capital(word, self.yo_words.get(lower_word, word))
-            if yo_predictions and yo_predictions[i] == "YO":
-                words[i] = fix_capital(word, self.yo_homographs.get(lower_word, word))
+            morph_tags = None
+            yo_predictions = None
+            for i, word in enumerate(words):
+                lower_word = word.lower()
+                # Выбираем на основе словаря (для не омографов)
+                yo_word = self.yo_words.get(lower_word)
+
+                if yo_word is None:
+                    # Выбираем на основе морфологии
+                    interpretations = self.yo_rules.get(word.lower())
+                    if interpretations is not None:
+                        if morph_tags is None:  # инициализируем при первом использовании
+                            split_sentence = " ".join(words)
+                            morph_tags = self._align_morph_tokens(self.morph.predict_morph(split_sentence), split_sentence)
+                            assert len(morph_tags) == len(words), words
+                        assert morph_tags[i][0] == word, f"'{morph_tags[i][0]}' '{word}'"
+                        w, choise = self._choose_yo_rules(interpretations, morph_tags[i][1])
+                        if choise:
+                            yo_word = choise.get('acc', w)
+
+                if yo_word is None:
+                    # Выбираем нейросетью
+                    if not self.tiny_mode:
+                        yo_word = self.yo_homographs.get(lower_word)
+                        if yo_word is not None:
+                            if yo_predictions is None:  # инициализируем при первом использовании
+                                yo_predictions = self.extract_entities(self.yo_homograph_model.predict_yo_homographs(lower_sentence))
+                                assert len(yo_predictions) == len(words), yo_predictions
+                            if yo_predictions and yo_predictions[i] == "YO":
+                                words[i] = fix_capital(word, yo_word)
+
+                if yo_word is not None:
+                    if self.stress_homographs_only:
+                        # Убираем лишние ударения
+                        if "ё" in yo_word or self.count_vowels(yo_word) == 1:
+                            yo_word = re.sub(r'\+', '', yo_word)
+                    words[i] = fix_capital(word, yo_word)
+
         return words
 
 
     def _process_omographs(self, text):
-        splitted_text = text
-    
+        text_lower = [w.lower() for w in text]
+        
         founded_omographs = []
         texts = []
         hypotheses = []
     
-        for i, word in enumerate(splitted_text):
+        for i, word in enumerate(text_lower):
             variants = self.omographs.get(word)
             if variants:
                 founded_omographs.append(
                     {"word": word, "variants": variants, "position": i}
                 )
-                texts.append(splitted_text)
+                texts.append(text_lower)
                 hypotheses.append(variants)
-    
+
         if len(founded_omographs) > 0:
             texts_batch = []
             hypotheses_batch = [val for sublist in hypotheses for val in sublist]
@@ -195,8 +348,8 @@ class RUAccent:
             cls_batch = self.omograph_model.classify(texts_batch, hypotheses_batch, num_hypotheses)
             for cls_index, omograph in enumerate(founded_omographs):
                 position = omograph["position"]
-                splitted_text[position] = cls_batch[cls_index]
-        return splitted_text
+                text[position] = fix_capital(text[position], cls_batch[cls_index])
+        return text
 
 
     
@@ -207,18 +360,26 @@ class RUAccent:
                 continue
             if stress_usages[i] == "STRESS":
                 lower_word = word.lower()
-                stressed_word = self.accents.get(lower_word, lower_word)
-                if stressed_word == lower_word and not self.has_punctuation(lower_word) and self.count_vowels(lower_word) > 1:
-                    splitted_text[i] = self.accent_model.put_accent(word)
-                else:
-                    match = re.finditer(r'\+', stressed_word)
-                    word_fixed = list(word)
-                    for j, e in enumerate(list(match)):
-                        word_fixed = word_fixed[:e.start() + j] + ["+"] + list(word)[e.end() - 1:]
-                    splitted_text[i] = "".join(word_fixed)
+                if 'ё' in lower_word:
+                    # Если есть ё, то просто ставим ей ударение
+                    splitted_text[i] = re.sub(r'(?<!\+)(ё)', r'+\1', word, flags=re.IGNORECASE)
+                    continue
+                # Сначала смотрим по словарю
+                stressed_word = self.accents.get(lower_word)
+                if stressed_word is not None:
+                    splitted_text[i] = fix_capital(word, stressed_word)
+                    continue
+                if self.has_punctuation(lower_word):
+                    continue
+                if self.count_vowels(lower_word) == 1:
+                    splitted_text[i] = re.sub(r'(?<!\+)([аеиоуыэюя])', r'+\1', word, flags=re.IGNORECASE)
+                    continue
+                # Используем accent_model
+                stressed_word = self.accent_model.put_accent(word)
+                splitted_text[i] = fix_capital(word, stressed_word)
         return splitted_text
 
-        
+
     def process_yo(self, text):
         sentences = TextPreprocessor.split_by_sentences(text)
         outputs = []
@@ -229,7 +390,7 @@ class RUAccent:
             processed_text = self.delete_spaces_before_punc(processed_text)
             outputs.append(processed_text)
         return " ".join(outputs)
-    
+
 
     def process_all_internal(self, text):
         text = re.sub(self.normalize, "", text)
@@ -240,10 +401,21 @@ class RUAccent:
             if len(words) == 0:
                 outputs.append("".join(remaining_text))
                 continue
-            stress_usages = self.extract_entities(self.stress_usage_predictor.predict_stress_usage(sentence)) if not self.tiny_mode else ["STRESS"] * len(text)            
+            # Ёфикация. Также выдаёт ударения в ё-омографах.
             processed_words = self._process_yo(words, sentence)
+            # Расстановка ударений в омографах
             processed_words = self._process_omographs(processed_words)
-            processed_words = self._process_accent(processed_words, stress_usages)
+
+            if not self.stress_homographs_only:
+                # убираем ударения, т.к. stress_usage_predictor их считает пунктуацией
+                sentence = " ".join([re.sub(r'\+(?=[а-яёa-z]+)', '', w, flags=re.IGNORECASE) for w in words])
+
+                if not self.tiny_mode:
+                    stress_usages = self.extract_entities(self.stress_usage_predictor.predict_stress_usage(sentence))
+                else:
+                    stress_usages = ["STRESS"] * len(text)
+                processed_words = self._process_accent(processed_words, stress_usages)
+
             processed_sentence = "".join([l+r for l,r in zip(remaining_text, processed_words)] + [remaining_text[-1]])
             processed_sentence = self.delete_spaces_before_punc(processed_sentence)
             
