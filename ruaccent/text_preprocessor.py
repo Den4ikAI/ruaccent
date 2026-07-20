@@ -5,7 +5,7 @@ from razdel.substring import Substring
 class TextPreprocessor:
     @staticmethod
     def split_by_words(string):
-        string = string.replace(" - ",' ~ ')
+        string = re.sub(r'(^| )- ', r'\1~ ', string)
         match = list(re.finditer(r"\w*(?:\+\w+)*|[^\w\s]+", string.lower()))
         remaining_text =  [string[l.end():r.start()] for l,r in zip(match, match[1:])]
 
