@@ -21,7 +21,7 @@ class RUAccent:
         self.stress_usage_predictor = StressUsagePredictorModel()
         self.yo_homograph_model = YoHomographModel()
         self.fs = HfFileSystem()
-        self.normalize = re.compile(r"[^a-zA-Z0-9\sа-яА-ЯёЁ—.,!?:;""''(){}\[\]«»„“”-]")
+        self.normalize = re.compile(r"[^a-zA-Z0-9\sа-яА-ЯёЁ—.,!?:;\"''(){}\[\]«»„“”-]")
         self.omograph_models_paths = {'big_poetry': '/nn/nn_omograph/big_poetry', 
                                       'medium_poetry': '/nn/nn_omograph/medium_poetry', 
                                       'small_poetry': '/nn/nn_omograph/small_poetry',
