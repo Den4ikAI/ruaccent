@@ -9,7 +9,7 @@ from .accent_model import AccentModel
 from .stress_usage_model import StressUsagePredictorModel
 from .yo_homograph_model import YoHomographModel
 from .text_preprocessor import TextPreprocessor
-from .text_postprocessor import fix_capital
+from .text_postprocessor import fix_capital, fix_capital_stressed
 import re
 
 
@@ -172,7 +172,7 @@ class RUAccent:
         hypotheses = []
     
         for i, word in enumerate(splitted_text):
-            variants = self.omographs.get(word)
+            variants = self.omographs.get(word.lower())
             if variants:
                 founded_omographs.append(
                     {"word": word, "variants": variants, "position": i}
@@ -195,7 +195,9 @@ class RUAccent:
             cls_batch = self.omograph_model.classify(texts_batch, hypotheses_batch, num_hypotheses)
             for cls_index, omograph in enumerate(founded_omographs):
                 position = omograph["position"]
-                splitted_text[position] = cls_batch[cls_index]
+                splitted_text[position] = fix_capital_stressed(
+                    omograph["word"], cls_batch[cls_index]
+                )
         return splitted_text
 
 
