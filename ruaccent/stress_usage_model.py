@@ -1,6 +1,6 @@
 import numpy as np
 import json
-from onnxruntime import InferenceSession
+from .session_helper import create_session
 from transformers import AutoTokenizer
 
 class StressUsagePredictorModel:
@@ -8,7 +8,7 @@ class StressUsagePredictorModel:
         pass
 
     def load(self, path, device="CPU"):
-        self.session = InferenceSession(f"{path}/model.onnx", providers=["CUDAExecutionProvider" if device == "CUDA" else "CPUExecutionProvider"])
+        self.session = create_session(f"{path}/model.onnx", device=device)
 
         with open(f"{path}/config.json", "r") as f:
             self.id2label = json.load(f)["id2label"]

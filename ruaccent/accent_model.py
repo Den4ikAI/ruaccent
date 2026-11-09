@@ -1,6 +1,6 @@
 import numpy as np
 import json
-from onnxruntime import InferenceSession
+from .session_helper import create_session
 from .char_tokenizer import CharTokenizer
 from .text_postprocessor import fix_capital
 
@@ -13,7 +13,7 @@ class AccentModel:
         pass
 
     def load(self, path, device="CPU"):
-        self.session = InferenceSession(f"{path}/model.onnx", providers=["CUDAExecutionProvider" if device == "CUDA" else "CPUExecutionProvider"])
+        self.session = create_session(f"{path}/model.onnx", device=device)
 
         with open(f"{path}/config.json", "r") as f:
             self.id2label = json.load(f)["id2label"]
@@ -33,6 +33,8 @@ class AccentModel:
         lower_word = word.lower()
         inputs = self.tokenizer(lower_word, return_tensors="np")
         inputs = {k: v.astype(np.int64) for k, v in inputs.items()}
+        if "token_type_ids" not in inputs:
+            inputs["token_type_ids"] = np.zeros_like(inputs["input_ids"])
         outputs = self.session.run(None, inputs)
         output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
         logits = outputs[output_names["logits"]]
