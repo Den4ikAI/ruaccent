@@ -55,3 +55,8 @@ venv.bak/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Models and data files downloaded at runtime
+ruaccent/dictionary/
+ruaccent/nn/
+ruaccent/koziev/

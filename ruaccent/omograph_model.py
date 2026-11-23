@@ -1,5 +1,5 @@
 import numpy as np
-from onnxruntime import InferenceSession
+from .session_helper import create_session
 from transformers import AutoTokenizer
 import re
 
@@ -10,7 +10,7 @@ class OmographModel:
 
 
     def load(self, path, device="CPU"):
-        self.session = InferenceSession(f"{path}/model.onnx", providers=["CUDAExecutionProvider" if device == "CUDA" else "CPUExecutionProvider"])
+        self.session = create_session(f"{path}/model.onnx", device=device)
         self.tokenizer = AutoTokenizer.from_pretrained(path)
         
     def softmax(self, x):
