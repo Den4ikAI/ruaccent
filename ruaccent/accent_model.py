@@ -33,6 +33,11 @@ class AccentModel:
         lower_word = word.lower()
         inputs = self.tokenizer(lower_word, return_tensors="np")
         inputs = {k: v.astype(np.int64) for k, v in inputs.items()}
+        
+        # Add token_type_ids if missing (zeros with same shape as input_ids)
+        if 'token_type_ids' not in inputs:
+            inputs['token_type_ids'] = np.zeros_like(inputs['input_ids'])
+        
         outputs = self.session.run(None, inputs)
         output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
         logits = outputs[output_names["logits"]]
