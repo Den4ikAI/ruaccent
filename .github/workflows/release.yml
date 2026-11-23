@@ -1,0 +1,46 @@
+name: release
+
+# Publishes to PyPI when a GitHub Release is published (tag vX.Y.Z).
+# Uses PyPI Trusted Publishing: no API token is stored anywhere.
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Check that the tag matches the package version
+        run: |
+          version=$(python -c "import re; print(re.search(r'__version__ = \"(.+?)\"', open('ruaccent/__init__.py').read()).group(1))")
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$version" != "$tag" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match __version__ $version"
+            exit 1
+          fi
+      - run: pip install build
+      - run: python -m build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/ruaccent/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

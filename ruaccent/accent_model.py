@@ -1,51 +1,46 @@
-import numpy as np
 import json
-from onnxruntime import InferenceSession
-from .char_tokenizer import CharTokenizer
-from .text_postprocessor import fix_capital
+from os.path import join as join_path
 
-def softmax(x):
-    e_x = np.exp(x - np.max(x))
-    return e_x / e_x.sum(axis=-1, keepdims=True)
+import numpy as np
+
+from .char_tokenizer import CharTokenizer
+from .session_helper import create_session
+from .token_classifier import softmax
+
 
 class AccentModel:
-    def __init__(self) -> None:
-        pass
+    """Character-level model that puts a stress mark into a single word."""
+
+    threshold = 0.55
 
     def load(self, path, device="CPU"):
-        self.session = InferenceSession(f"{path}/model.onnx", providers=["CUDAExecutionProvider" if device == "CUDA" else "CPUExecutionProvider"])
-
-        with open(f"{path}/config.json", "r") as f:
-            self.id2label = json.load(f)["id2label"]
+        self.session = create_session(join_path(path, "model.onnx"), device=device)
+        with open(join_path(path, "config.json"), "r", encoding="utf-8") as f:
+            config = json.load(f)
+        self.id2label = config["id2label"]
+        self.max_word_length = config.get("max_position_embeddings", 60) - 2  # [bos], [eos]
+        self.primary_id = next(int(i) for i, label in self.id2label.items() if label == "STRESS_PRIMARY")
         self.tokenizer = CharTokenizer.from_pretrained(path)
-
-    def render_stress(self, text, pred):
-        text = list(text)
-        i = 0
-        for chunk in pred:
-            if chunk['label'] != "NO" and chunk['label'] != "STRESS_SECONDARY" and chunk["score"] >= 0.55:
-                text[i - 1] = "+" + text[i - 1]
-            i += 1
-        text = "".join(text)
-        return text
+        self.input_names = {i.name for i in self.session.get_inputs()}
 
     def put_accent(self, word):
-        lower_word = word.lower()
-        inputs = self.tokenizer(lower_word, return_tensors="np")
-        inputs = {k: v.astype(np.int64) for k, v in inputs.items()}
-        
-        # Add token_type_ids if missing (zeros with same shape as input_ids)
-        if 'token_type_ids' not in inputs:
-            inputs['token_type_ids'] = np.zeros_like(inputs['input_ids'])
-        
-        outputs = self.session.run(None, inputs)
-        output_names = {output_key.name: idx for idx, output_key in enumerate(self.session.get_outputs())}
-        logits = outputs[output_names["logits"]]
-        probabilities = softmax(logits)
-        scores = np.max(probabilities, axis=-1)[0]
-        labels = np.argmax(logits, axis=-1)[0]
-        pred_with_scores = [{'label': self.id2label[str(label)], 'score': float(score)} 
-                            for label, score in zip(labels, scores)]
+        if len(word) > self.max_word_length:
+            return word
+        inputs = self.tokenizer(word.lower(), return_tensors="np")
+        feed = {k: v.astype(np.int64) for k, v in inputs.items() if k in self.input_names}
+        if "token_type_ids" in self.input_names and "token_type_ids" not in feed:
+            feed["token_type_ids"] = np.zeros_like(feed["input_ids"])
+        logits = self.session.run(["logits"], feed)[0][0]
+        probs = softmax(logits)[1:-1]  # drop [bos]/[eos]
 
-        stressed_word = self.render_stress(word, pred_with_scores)
-        return stressed_word
+        # A word has exactly one primary stress: take the most confident
+        # character among those the model labels as primary.
+        candidates = [
+            (p[self.primary_id], i)
+            for i, p in enumerate(probs[: len(word)])
+            if p.argmax() == self.primary_id and p[self.primary_id] >= self.threshold
+        ]
+        if not candidates:
+            return word
+        _, pos = max(candidates)
+        return word[:pos] + "+" + word[pos:]
