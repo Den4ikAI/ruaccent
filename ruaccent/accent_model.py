@@ -16,12 +16,16 @@ class AccentModel:
     def load(self, path, device="CPU"):
         self.session = create_session(join_path(path, "model.onnx"), device=device)
         with open(join_path(path, "config.json"), "r", encoding="utf-8") as f:
-            self.id2label = json.load(f)["id2label"]
+            config = json.load(f)
+        self.id2label = config["id2label"]
+        self.max_word_length = config.get("max_position_embeddings", 60) - 2  # [bos], [eos]
         self.primary_id = next(int(i) for i, label in self.id2label.items() if label == "STRESS_PRIMARY")
         self.tokenizer = CharTokenizer.from_pretrained(path)
         self.input_names = {i.name for i in self.session.get_inputs()}
 
     def put_accent(self, word):
+        if len(word) > self.max_word_length:
+            return word
         inputs = self.tokenizer(word.lower(), return_tensors="np")
         feed = {k: v.astype(np.int64) for k, v in inputs.items() if k in self.input_names}
         if "token_type_ids" in self.input_names and "token_type_ids" not in feed:

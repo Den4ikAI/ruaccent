@@ -168,7 +168,8 @@ class RUAccent:
         texts, hypotheses = [], []
         for i, variants in found:
             marked = context.copy()
-            marked[i] = " <w>" + marked[i] + "</w> "
+            # The homograph model is case-sensitive; it was trained on lowercase targets.
+            marked[i] = " <w>" + marked[i].lower() + "</w> "
             text = TextPreprocessor.join_for_model(marked)
             texts.extend([text] * len(variants))
             hypotheses.extend(variants)

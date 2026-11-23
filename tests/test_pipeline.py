@@ -53,9 +53,15 @@ def test_homographs(acc):
     assert acc.process_all("Замок стоял на горе.").startswith("З+амок")
 
 
-@pytest.mark.parametrize("text", ["Белки ели орехи.", "Замок стоял на горе.", "Все елки зеленые."])
+@pytest.mark.parametrize("text", ["белки ели орехи.", "замок стоял на горе.", "все елки зеленые."])
 def test_caps_do_not_change_result(acc, text):
-    assert acc.process_all(text.upper()) == acc.process_all(text).upper()
+    expected = acc.process_all(text)
+    assert acc.process_all(text.upper()) == expected.upper()
+    assert acc.process_all(text.capitalize()) == expected[0].upper() + expected[1:]
+
+
+def test_very_long_word(acc):
+    assert acc.process_all("а" * 80 + " мама") == "а" * 80 + " м+ама"
 
 
 def test_yo(acc):
